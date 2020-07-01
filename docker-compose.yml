@@ -1,0 +1,40 @@
+version: '2' 
+services: 
+  ska: 
+    image: ska
+    build:
+      context: .
+      args:
+        # Allow fetching packages from the internet in corporate environments
+        http_proxy: ${http_proxy}
+    env_file: docker.env
+    ports:
+      - 80:80
+
+  ska-db:
+    image: mariadb:10.5
+    env_file: docker.env
+
+  cron: 
+    image: ska
+    env_file: docker.env
+    depends_on:
+      - ska-db
+    entrypoint: |
+      bash -c '
+        ./prepare-docker-configs.sh
+
+        while true
+        do
+          sleep 10
+          echo Sync ldap users and keys
+          php /ska/scripts/ldap_update.php
+          php /ska/scripts/sync.php --all
+        done'
+      
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+       - subnet: 10.10.8.0/28
